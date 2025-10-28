@@ -246,9 +246,9 @@ def main():
     preds_lgb_reg = lgb_reg_calibrator.predict(np.clip(preds_lgb_reg_raw, 0, 1))
 
     # ★ Optuna가 찾은 최종 최적 가중치 적용 ★
-    WEIGHT_LGB_CLF = 0.7508  # Optuna 최종 결과
-    WEIGHT_CAT_CLF = 0.2479  # Optuna 최종 결과
-    WEIGHT_LGB_REG = 0.0013  # Optuna 최종 결과
+    WEIGHT_LGB_CLF = 0.7339  # Optuna 최종 결과
+    WEIGHT_CAT_CLF = 0.2176  # Optuna 최종 결과
+    WEIGHT_LGB_REG = 0.0485  # Optuna 최종 결과
     print(f"Applying final optimized 3-model weights (LGB_clf: {WEIGHT_LGB_CLF:.4f}, Cat: {WEIGHT_CAT_CLF:.4f}, LGB_reg: {WEIGHT_LGB_REG:.4f})...")
     final_predictions = (WEIGHT_LGB_CLF * preds_lgb_clf +
                            WEIGHT_CAT_CLF * preds_cat_clf +
