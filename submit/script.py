@@ -74,59 +74,62 @@ def main():
     SUBMISSION_PATH = os.path.join(OUTPUT_DIR, 'submission.csv')
     CHUNKSIZE = 100000
 
-    # ★ 2. 모델 및 교정기 경로 정의 (3개 모델 모두) ★
+    # 모델 및 교정기 경로 정의 (3개 모델 모두)
     LGB_CLF_MODEL_PATH = os.path.join(MODEL_DIR, 'model.txt')
     CAT_CLF_MODEL_PATH = os.path.join(MODEL_DIR, 'model_cat.cbm')
-    LGB_REG_MODEL_PATH = os.path.join(MODEL_DIR, 'model_reg.txt') # Regressor 모델 추가
+    LGB_REG_MODEL_PATH = os.path.join(MODEL_DIR, 'model_reg.txt')
     LGB_CLF_CALIBRATOR_PATH = os.path.join(MODEL_DIR, 'calibrator_lgb.joblib')
     CAT_CLF_CALIBRATOR_PATH = os.path.join(MODEL_DIR, 'calibrator_cat.joblib')
-    LGB_REG_CALIBRATOR_PATH = os.path.join(MODEL_DIR, 'calibrator_lgb_reg.joblib') # Regressor 교정기 추가
+    LGB_REG_CALIBRATOR_PATH = os.path.join(MODEL_DIR, 'calibrator_lgb_reg.joblib')
 
-    # ★ 3. 모델, 교정기 로드 (3개 모델 모두) ★
+    # 모델, 교정기 로드 (3개 모델 모두)
     try:
         lgb_clf_model = lgb.Booster(model_file=LGB_CLF_MODEL_PATH)
-        lgb_features = lgb_clf_model.feature_name() # Classifier의 피처 목록 사용
+        lgb_features = lgb_clf_model.feature_name()
         print(f"LGBM Classifier Model loaded from {LGB_CLF_MODEL_PATH}")
-
         cat_clf_model = CatBoostClassifier()
         cat_clf_model.load_model(CAT_CLF_MODEL_PATH)
         cat_features_model = cat_clf_model.feature_names_
         print(f"CatBoost Classifier Model loaded from {CAT_CLF_MODEL_PATH}")
-
-        lgb_reg_model = lgb.Booster(model_file=LGB_REG_MODEL_PATH) # Regressor 모델 로드
+        lgb_reg_model = lgb.Booster(model_file=LGB_REG_MODEL_PATH)
         print(f"LGBM Regressor Model loaded from {LGB_REG_MODEL_PATH}")
-
         lgb_clf_calibrator = joblib.load(LGB_CLF_CALIBRATOR_PATH)
         print(f"LGBM Classifier Calibrator loaded from {LGB_CLF_CALIBRATOR_PATH}")
         cat_clf_calibrator = joblib.load(CAT_CLF_CALIBRATOR_PATH)
         print(f"CatBoost Classifier Calibrator loaded from {CAT_CLF_CALIBRATOR_PATH}")
-        lgb_reg_calibrator = joblib.load(LGB_REG_CALIBRATOR_PATH) # Regressor 교정기 로드
+        lgb_reg_calibrator = joblib.load(LGB_REG_CALIBRATOR_PATH)
         print(f"LGBM Regressor Calibrator loaded from {LGB_REG_CALIBRATOR_PATH}")
-
     except Exception as e:
         print(f"!! Error loading models or calibrators: {e}"); return
 
-    # 4. 테스트 데이터 전처리 (A, B)
+    # 테스트 데이터 전처리 (A, B)
     # ( ... 이전과 동일한 전처리 로직 ... )
     print("Processing Test A file...")
-    processed_chunks_A = []
+    # ... (A 파일 처리) ...
     try:
         with pd.read_csv(TEST_A_PATH, chunksize=CHUNKSIZE) as reader:
-            for chunk in reader: processed_chunks_A.append(process_dataframe(chunk, file_type='A')); gc.collect()
-    except FileNotFoundError: print("Test A file not found. Skipping.")
+            processed_chunks_A = [process_dataframe(chunk, file_type='A') for chunk in reader]
+    except FileNotFoundError:
+        print("Test A file not found. Skipping.")
+        processed_chunks_A = []
+    gc.collect()
+
     print("Processing Test B file...")
-    processed_chunks_B = []
+    # ... (B 파일 처리) ...
     try:
         with pd.read_csv(TEST_B_PATH, chunksize=CHUNKSIZE) as reader:
-            for chunk in reader: processed_chunks_B.append(process_dataframe(chunk, file_type='B')); gc.collect()
-    except FileNotFoundError: print("Test B file not found. Skipping.")
+            processed_chunks_B = [process_dataframe(chunk, file_type='B') for chunk in reader]
+    except FileNotFoundError:
+        print("Test B file not found. Skipping.")
+        processed_chunks_B = []
+    gc.collect()
 
     df_A_processed = pd.concat(processed_chunks_A, ignore_index=True) if processed_chunks_A else pd.DataFrame()
     df_B_processed = pd.concat(processed_chunks_B, ignore_index=True) if processed_chunks_B else pd.DataFrame()
     df_all_features = pd.concat([df_A_processed, df_B_processed], ignore_index=True, sort=False)
     print(f"Total processed test features shape: {df_all_features.shape}")
 
-    # 5. test.csv 병합 + Lag/Static PK/Hypothesis/TargetEnc 피처 생성
+    # test.csv 병합 + Lag/Static PK/Hypothesis/TargetEnc 피처 생성
     try:
         df_test_meta = pd.read_csv(TEST_IDS_PATH)[['Test_id', 'Test']]
         df_test_final = pd.merge(df_test_meta, df_all_features, on='Test_id', how='left')
@@ -138,6 +141,7 @@ def main():
 
         # --- Lag 피처 생성 ---
         print("Creating Lag (Time-Series) features for test set...")
+        # ... (Lag 피처 생성 로직) ...
         df_test_final = df_test_final.sort_values(by=['PrimaryKey', 'TestDate_Numeric']).reset_index(drop=True)
         lag_cols = [
             'TestDate_Numeric', 'Age', 'A1-2_mean', 'A1-3_mean', 'A1-4_mean', 'A6-1', 'A7-1',
@@ -149,13 +153,15 @@ def main():
         df_test_final['Test_Gap_Time'] = df_test_final.apply(
             lambda row: row['TestDate_Numeric'] - row['Prev_TestDate_Numeric'] if pd.notna(row['Prev_TestDate_Numeric']) and row['Prev_TestDate_Numeric'] > 0 else np.nan, axis=1
         )
-        df_test_final['Age_Delta'] = df_test_final['Age'] - df_test_final['Prev_Age']
+        df_test_final['Age_Delta'] = df_test_final['Age'] - df_test_final['Prev_Age'] # Use df_test_final
         if 'A1-2_mean' in lag_cols: df_test_final['A1-2_mean_Delta'] = df_test_final['A1-2_mean'] - df_test_final['Prev_A1-2_mean']
         if 'B10-1' in lag_cols: df_test_final['B10-1_Delta'] = df_test_final['B10-1'] - df_test_final['Prev_B10-1']
         print("Lag/Delta feature creation finished for test set.")
 
+
         # --- 가설 기반 피처 생성 ---
         print("Creating Hypothesis-Driven Features for test set...")
+        # ... (Risk_... 피처 생성 로직) ...
         if 'A9-2' in df_test_final.columns and 'A9-5' in df_test_final.columns:
              df_test_final['Risk_Impulse_x_RuleViolation'] = df_test_final['A9-2'] * df_test_final['A9-5']
         if 'B9-2' in df_test_final.columns and 'B10-2' in df_test_final.columns:
@@ -172,25 +178,22 @@ def main():
              df_test_final['Risk_Index_Mean'] = df_test_final[existing_risk_cols].fillna(0).mean(axis=1)
         print("Hypothesis-Driven feature creation finished for test set.")
 
-        # --- ★ 타겟 인코딩 적용 (Test Set) ★ ---
-        # 테스트셋에는 K-Fold 대신 전체 학습 데이터로 계산된 평균 사용
-        # 노트북 [1.5] 단계에서 계산된 global_target_mean과 target_mean_map 필요
-        # 이를 위해 이 값들을 저장하거나, 스크립트 내에서 다시 계산해야 함
-        # 여기서는 **단순화를 위해 global_target_mean만 사용** (추후 개선 가능)
-        print("Applying Target Encoding for test set (using global mean)...")
+
+        # --- 타겟 인코딩 적용 (Test Set - Smoothed) ---
+        print("Applying Smoothed Target Encoding for test set (using global mean)...")
         # global_target_mean 값은 노트북 실행 결과에서 가져와야 함 (예: 0.028877)
         GLOBAL_TARGET_MEAN = 0.028877 # ★ 노트북 실행 결과 확인 후 값 수정 필요 ★
         KEY = 'PrimaryKey'
-        TARGET_ENC_COL = f'{KEY}_TargetEnc'
-        # 모든 테스트 데이터에 일단 global mean 할당 (학습 시 못 본 PrimaryKey 대비)
+        TARGET_ENC_COL = f'{KEY}_TargetEnc_Smooth' # ★ 스무딩된 컬럼명 사용 ★
         df_test_final[TARGET_ENC_COL] = GLOBAL_TARGET_MEAN
-        # (개선) 실제로는 학습 데이터로 만든 target_mean_map을 로드해서 map하는 것이 더 정확함
-        print("Target Encoding applied.")
+        # (개선) 실제로는 학습 데이터로 만든 스무딩된 target_mean_map을 로드해서 map하는 것이 더 정확함
+        print("Smoothed Target Encoding applied.")
         # --- 타겟 인코딩 끝 ---
 
 
         # --- 정적 PK 피처 생성 ---
         print("Creating PrimaryKey-based features for test set...")
+        # ... (정적 PK 피처 생성 로직) ...
         df_test_final['TestDate_Numeric_Agg'] = df_test_final['TestDate_Numeric'].replace(0, np.nan)
         grouped_by_pk = df_test_final.groupby('PrimaryKey')
         pk_features = grouped_by_pk.agg(
@@ -208,19 +211,18 @@ def main():
         df_test_final = df_test_final.drop(columns=['TestDate_Numeric', 'TestDate_Numeric_Agg'])
         print("PrimaryKey features merged for test set.")
 
+
         df_test_final['Test'] = df_test_final['Test'].astype(str)
         print("Merged with test.csv successfully.")
     except Exception as e:
         print(f"Error during feature engineering for test set: {e}"); return
 
     # 6. 예측을 위한 특성 준비 (모델별로)
-    # LGBM용 (Classifier와 Regressor는 동일 피처 사용 가정)
     X_test_lgb = df_test_final.reindex(columns=lgb_features, fill_value=np.nan)
     if 'Test' in X_test_lgb.columns:
         X_test_lgb['Test'] = X_test_lgb['Test'].astype('category')
     print(f"Final X_test_lgb shape for prediction: {X_test_lgb.shape}")
 
-    # CatBoost용 Pool
     final_cat_features = [col for col in cat_features_model if col in df_test_final.columns]
     X_test_cat_df = df_test_final[final_cat_features]
     categorical_features_indices = [i for i, col in enumerate(X_test_cat_df.columns) if col == 'Test']
@@ -236,18 +238,18 @@ def main():
     preds_cat_clf_raw = cat_clf_model.predict_proba(test_pool)[:, 1]
 
     print("Predicting probabilities (LGBM Regressor - Raw)...")
-    preds_lgb_reg_raw = lgb_reg_model.predict(X_test_lgb) # Regressor는 predict 사용
+    preds_lgb_reg_raw = lgb_reg_model.predict(X_test_lgb)
 
     print("Applying calibration (IsotonicRegression)...")
     preds_lgb_clf = lgb_clf_calibrator.predict(preds_lgb_clf_raw)
     preds_cat_clf = cat_clf_calibrator.predict(preds_cat_clf_raw)
-    preds_lgb_reg = lgb_reg_calibrator.predict(np.clip(preds_lgb_reg_raw, 0, 1)) # Clip 후 보정
+    preds_lgb_reg = lgb_reg_calibrator.predict(np.clip(preds_lgb_reg_raw, 0, 1))
 
-    # ★ Optuna가 찾은 최적 가중치 적용 ★
-    WEIGHT_LGB_CLF = 0.5752  # Optuna 결과
-    WEIGHT_CAT_CLF = 0.4243  # Optuna 결과
-    WEIGHT_LGB_REG = 0.0005  # Optuna 결과
-    print(f"Applying optimized 3-model weights (LGB_clf: {WEIGHT_LGB_CLF:.4f}, Cat: {WEIGHT_CAT_CLF:.4f}, LGB_reg: {WEIGHT_LGB_REG:.4f})...")
+    # ★ Optuna가 찾은 최종 최적 가중치 적용 ★
+    WEIGHT_LGB_CLF = 0.7508  # Optuna 최종 결과
+    WEIGHT_CAT_CLF = 0.2479  # Optuna 최종 결과
+    WEIGHT_LGB_REG = 0.0013  # Optuna 최종 결과
+    print(f"Applying final optimized 3-model weights (LGB_clf: {WEIGHT_LGB_CLF:.4f}, Cat: {WEIGHT_CAT_CLF:.4f}, LGB_reg: {WEIGHT_LGB_REG:.4f})...")
     final_predictions = (WEIGHT_LGB_CLF * preds_lgb_clf +
                            WEIGHT_CAT_CLF * preds_cat_clf +
                            WEIGHT_LGB_REG * preds_lgb_reg)
