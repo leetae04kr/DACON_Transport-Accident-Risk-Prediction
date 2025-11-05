@@ -81,7 +81,7 @@ def main():
     # --- 모델, 교정기 로드 (3개 모델) ---
     try:
         lgb_clf_model = lgb.Booster(model_file=LGB_CLF_MODEL_PATH)
-        lgb_features = lgb_clf_model.feature_name() # LGBM Classifier와 Regressor가 피처 목록 공유
+        lgb_features = lgb_clf_model.feature_name() 
         print(f"LGBM Classifier Model loaded from {LGB_CLF_MODEL_PATH}")
         
         cat_clf_model = CatBoostClassifier()
@@ -135,7 +135,10 @@ def main():
         df_test_final['TestDate_Numeric'] = df_test_final['TestDate_Numeric'].fillna(0)
         print("Creating Lag (Time-Series) features for test set...")
         df_test_final = df_test_final.sort_values(by=['PrimaryKey', 'TestDate_Numeric']).reset_index(drop=True)
-        lag_cols = ['TestDate_Numeric', 'Age', 'A1-2_mean', 'A1-3_mean', 'A1-4_mean', 'A6-1', 'A7-1', 'B11_mean', 'B6_mean', 'B7_mean', 'B10-1', 'B10-2'] # B1-1_mean -> B11_mean (오타 수정 가정)
+        
+        # ★★★ B11_mean -> B1-1_mean으로 수정 ★★★
+        lag_cols = ['TestDate_Numeric', 'Age', 'A1-2_mean', 'A1-3_mean', 'A1-4_mean', 'A6-1', 'A7-1', 'B1-1_mean', 'B6_mean', 'B7_mean', 'B10-1', 'B10-2']
+        
         lag_cols = [col for col in lag_cols if col in df_test_final.columns]
         for col in lag_cols:
             df_test_final[f'Prev_{col}'] = df_test_final.groupby('PrimaryKey')[col].shift(1)
@@ -184,7 +187,7 @@ def main():
     test_pool = Pool(data=X_test_cat_df, cat_features=categorical_features_indices)
     print(f"CatBoost Pool created successfully.")
 
-    # --- ★★★ 7. 3개 모델 앙상블 예측 (보정 + 최신 Optuna 가중치) ★★★ ---
+    # --- ★★★ 7. 3개 모델 앙상블 예측 (가중치 동일) ★★★ ---
     print("Predicting probabilities (LGBM Classifier - Raw)...")
     preds_lgb_clf_raw = lgb_clf_model.predict(X_test_lgb)
     
